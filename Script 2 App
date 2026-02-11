@@ -1,0 +1,179 @@
+#!/bin/bash
+
+currentUser=$( echo "show State:/Users/ConsoleUser" | scutil | awk '/Name :/ { print $3 }' )
+uid=$(id -u "$currentUser")
+
+applicationiconicns=`echo "/private/tmp/$(uuidgen).icns"` 
+file=`echo "/private/tmp/$(uuidgen).png"`
+applicationiconiconset=`echo "/private/tmp/$(uuidgen).iconset"`
+newIcon=`echo "/private/tmp/$(uuidgen).png"`
+
+cleanup () {
+  rm -R "$applicationiconiconset"
+  rm "$file"
+  rm "$newIcon"
+  rm $applicationiconicns
+}
+
+trap cleanup EXIT SIGINT SIGHUP SIGTERM 
+
+createIcon () {
+ /usr/bin/sips --setProperty format png "$1" -o $file
+ Height=`/usr/bin/sips --getProperty pixelHeight $file | sed 's/[^0-9]//g' | tail -1`
+ Width=`/usr/bin/sips --getProperty pixelWidth $file | sed 's/[^0-9]//g' | tail -1`
+
+ rm $newIcon
+ if [[ $Width -ne $Height ]]
+  cp $file $newIcon
+  then 
+  if [[ $Width -gt $Height ]]
+   then
+    /usr/bin/sips --padToHeightWidth $Width $Width $file -o  $newIcon
+   else
+    echo "To Tall"
+    /usr/bin/sips --padToHeightWidth $Height $Height $file -o  $newIcon
+   fi
+  fi 
+
+  mkdir $applicationiconiconset
+  /usr/bin/sips --resampleHeightWidth 16 16     $newIcon --out $applicationiconiconset/icon_16x16.png
+  /usr/bin/sips --resampleHeightWidth 32 32     $newIcon --out $applicationiconiconset/icon_16x16@2x.png
+  /usr/bin/sips --resampleHeightWidth 32 32     $newIcon --out $applicationiconiconset/icon_32x32.png
+  /usr/bin/sips --resampleHeightWidth 64 64     $newIcon --out $applicationiconiconset/icon_32x32@2x.png
+  /usr/bin/sips --resampleHeightWidth 128 128   $newIcon --out $applicationiconiconset/icon_128x128.png
+  /usr/bin/sips --resampleHeightWidth 256 256   $newIcon --out $applicationiconiconset/icon_128x128@2x.png
+  /usr/bin/sips --resampleHeightWidth 256 256   $newIcon --out $applicationiconiconset/icon_256x256.png
+  /usr/bin/sips --resampleHeightWidth 512 512   $newIcon --out $applicationiconiconset/icon_256x256@2x.png
+  /usr/bin/sips --resampleHeightWidth 512 512   $newIcon --out $applicationiconiconset/icon_512x512.png
+  /usr/bin/sips --resampleHeightWidth 1024 1024   $newIcon --out $applicationiconiconset/icon_512x512@2x.png
+  /usr/bin/iconutil -c icns $applicationiconiconset -o "$applicationiconicns"
+}
+
+ScriptLocation=`/usr/bin/osascript -e 'return POSIX path of (choose file with prompt "Choose the Script to turn into a Application:")'`
+if [ $? -ne 0 ]; then
+ exit 1
+fi
+
+echo "Target script is $ScriptLocation"
+AppName=$(echo $ScriptLocation | sed 's/.*\/\(.*\)/\1/')
+AppPath="/Users/$currentUser/Applications/$AppName.app"
+
+CFBundleGetInfoString="$AppName"
+CFBundleIdentifier="com.$currentUser.$AppName"
+CFBundleName="$AppName"
+CFBundleShortVersionString="1.0"
+#IFMajorVersion="1"
+#IFMinorVersion="0"
+
+if [ -d "$AppPath" ]
+ then
+  /usr/bin/osascript -e 'display dialog "An Application called '$AppName' already exists" buttons {"Overwrite", "Cancel"} default button "Cancel"'
+  if [ $? -ne 0 ]; then
+   exit 1
+  fi
+    # get values from old Application
+    #
+    oldPlist=$( cat $AppPath/Contents/Info.plist | tr -d '\n' )
+    CFBundleGetInfoString="$(echo $oldPlist | sed 's/.*<key>CFBundleGetInfoString<\/key>[^>]*>\([^<]*\).*/\1/')"
+    CFBundleIdentifier=`echo $oldPlist | sed 's/.*<key>CFBundleIdentifier<\/key>[^>]*>\([^<]*\).*/\1/'`
+    CFBundleName=`echo $oldPlist | sed 's/.*<key>CFBundleName<\/key>[^>]*>\([^<]*\).*/\1/'`
+    CFBundleShortVersionString=`echo $oldPlist | sed 's/.*<key>CFBundleShortVersionString<\/key>[^>]*>\([^<]*\).*/\1/'`
+    #IFMajorVersion=$(echo $oldPlist | sed 's/.*<key>IFMajorVersion<\/key>[^>]*>\([^<]*\).*>.*/\1/')
+    #IFMinorVersion=$(echo $oldPlist | sed 's/.*<key>IFMinorVersion<\/key>[^>]*>\([^<]*\).*>.*/\1/')
+
+fi
+
+
+  CFBundleGetInfoString=`/usr/bin/osascript -e 'text returned of  (display dialog "Set CFBundleGetInfoString?" default answer "'"$CFBundleGetInfoString"'" with icon note buttons {"Cancel", "Ok"} default button "Ok")'`
+  if [ $? -ne 0 ]; then
+    exit 1
+  fi
+  CFBundleIdentifier=`/usr/bin/osascript -e 'text returned of  (display dialog "Set CFBundleIdentifier?" default answer "'"$CFBundleIdentifier"'" with icon note buttons {"Cancel", "Ok"} default button "Ok")'`
+  if [ $? -ne 0 ]; then
+    exit 1
+  fi
+  CFBundleName=`/usr/bin/osascript -e 'text returned of  (display dialog "Set CFBundleName?" default answer "'"$CFBundleName"'" with icon note buttons {"Cancel", "Ok"} default button "Ok")'`
+  if [ $? -ne 0 ]; then
+    exit 1
+  fi
+  CFBundleShortVersionString=`/usr/bin/osascript -e 'text returned of  (display dialog "Set CFBundleShortVersionString?" default answer "'"$CFBundleShortVersionString"'" with icon note buttons {"Cancel", "Ok"} default button "Ok")'`
+  if [ $? -ne 0 ]; then
+    exit 1
+  fi
+  IFMajorVersion=`/usr/bin/osascript -e 'text returned of  (display dialog "Set IFMajorVersion?" default answer "'$(echo $CFBundleShortVersionString | sed 's/^\([0-9]*\).*/\1/')'" with icon note buttons {"Cancel", "Ok"} default button "Ok")'`
+  if [ $? -ne 0 ]; then
+    exit 1
+  fi
+  IFMinorVersion=`/usr/bin/osascript -e 'text returned of  (display dialog "Set IFMinorVersion?" default answer "'$(echo $CFBundleShortVersionString | sed 's/^[^.]*.\(.*\)/\1/')'" with icon note buttons {"Cancel", "Ok"} default button "Ok")'`
+  if [ $? -ne 0 ]; then
+    exit 1
+  fi
+
+
+
+
+
+echo "Application Name will be $AppName"
+Icon=`/usr/bin/osascript -e 'return POSIX path of (choose file with prompt "Choose the image to turn into an icon:")'`
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+
+createIcon "$Icon"
+
+while [ ! -f "$applicationiconicns" ]
+do 
+  Icon=`/usr/bin/osascript -e 'return POSIX path of (choose file with prompt "Failed Select a Different image to turn into an icon:")'`
+  if [ $? -ne 0 ]; then
+    exit 1
+  fi
+  createIcon "$Icon"
+done
+
+rm -R "$AppPath"
+sleep 3
+touch "$AppPath"
+ls /Users/$currentUser/Applications/
+rm -R "$AppPath"
+sleep 3
+
+
+mkdir "$AppPath"
+mkdir "$AppPath/Contents"
+mkdir "$AppPath/Contents/MacOS"
+mkdir "$AppPath/Contents/Resources"
+cp "$ScriptLocation" "$AppPath/Contents/MacOS/$AppName"
+mv $applicationiconicns "$AppPath/Contents/Resources/applicationicon.icns"
+
+echo '<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http:\/\/www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleGetInfoString</key>
+  <string>'$CFBundleGetInfoString'</string>
+  <key>CFBundleExecutable</key>
+  <string>'$AppName'</string>
+  <key>CFBundleIdentifier</key>
+  <string>'$CFBundleIdentifier'</string>
+  <key>CFBundleName</key>
+  <string>'$CFBundleName'</string>
+  <key>CFBundleIconFile</key>
+  <string>applicationicon.icns</string>
+  <key>CFBundleShortVersionString</key>
+  <string>'$CFBundleShortVersionString'</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>IFMajorVersion</key>
+  <integer>'$IFMajorVersion'</integer>
+  <key>IFMinorVersion</key>
+  <integer>'$IFMinorVersion'</integer>
+</dict>
+</plist>' > "$AppPath/Contents/Info.plist"
+
+chmod +x "$AppPath"
+xattr -d -r com.apple.quarantine "$AppPath"
+
+ls /Users/$currentUser/Applications/
+open "/Users/$currentUser/Applications"
