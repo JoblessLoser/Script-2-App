@@ -119,7 +119,7 @@ fi
   if [ $? -ne 0 ]; then
     exit 1
   fi
-  IFMinorVersion=`/usr/bin/osascript -e 'text returned of  (display dialog "Set IFMinorVersion?" default answer "'$(echo $CFBundleShortVersionString | sed 's/^[^.]*.\(.*\)/\1/')'" with icon note buttons {"Cancel", "Ok"} default button "Ok")'`
+  IFMinorVersion=`/usr/bin/osascript -e 'text returned of  (display dialog "Set IFMinorVersion?" default answer "'$(echo $CFBundleShortVersionString | sed 's/^[^.]*.\([0-9]*\).*/\1/')'" with icon note buttons {"Cancel", "Ok"} default button "Ok")'`
   if [ $? -ne 0 ]; then
     exit 1
   fi
